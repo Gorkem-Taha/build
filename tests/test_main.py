@@ -1454,6 +1454,17 @@ def test_write_report_is_atomic(tmp_path: pathlib.Path, built_dist: tuple[pathli
     assert not list(outdir.glob('*.tmp'))
 
 
+def test_create_windows_report_temporary_file(tmp_path: pathlib.Path) -> None:
+    fd, path = build.__main__._create_temp_report_file(str(tmp_path), windows=True)
+    with os.fdopen(fd, 'w', encoding='utf-8') as file:
+        file.write('report')
+
+    try:
+        assert pathlib.Path(path).read_text(encoding='utf-8') == 'report'
+    finally:
+        os.unlink(path)
+
+
 @pytest.mark.skipif(os.name == 'nt', reason='POSIX umask semantics are required')
 @pytest.mark.parametrize(('umask', 'expected_mode'), [(0o022, 0o644), (0o077, 0o600)])
 def test_report_permissions_honor_umask(
@@ -1473,6 +1484,7 @@ def test_report_permissions_honor_umask(
     assert report.stat().st_mode & 0o777 == expected_mode
 
 
+@pytest.mark.skipif(os.name == 'nt', reason='O_EXCL temporary file creation is POSIX-specific')
 def test_write_report_retries_colliding_temporary_name(
     mocker: pytest_mock.MockerFixture,
     tmp_path: pathlib.Path,

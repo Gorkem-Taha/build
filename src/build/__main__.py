@@ -770,14 +770,7 @@ def _write_report(path: StrPath, outdir: StrPath, artifacts: Sequence[str]) -> N
 
     report_dir = os.path.dirname(os.path.abspath(path))
     os.makedirs(report_dir, exist_ok=True)
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, 'O_BINARY', 0)
-    while True:
-        tmp = os.path.join(report_dir, f'tmp{secrets.token_hex(16)}.tmp')
-        try:
-            fd = os.open(tmp, flags, 0o666)
-        except FileExistsError:
-            continue
-        break
+    fd, tmp = _create_temp_report_file(report_dir, windows=os.name == 'nt')
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as report_file:
             report_file.write(data)
@@ -786,6 +779,21 @@ def _write_report(path: StrPath, outdir: StrPath, artifacts: Sequence[str]) -> N
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+
+
+def _create_temp_report_file(report_dir: str, *, windows: bool) -> tuple[int, str]:
+    if windows:
+        fd, tmp = tempfile.mkstemp(dir=report_dir, suffix='.tmp')
+        return fd, tmp
+
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    while True:
+        tmp = os.path.join(report_dir, f'tmp{secrets.token_hex(16)}.tmp')
+        try:
+            fd = os.open(tmp, flags, 0o666)
+        except FileExistsError:
+            continue
+        return fd, tmp
 
 
 def _describe_artifact(path: str, name: str) -> _ArtifactReport:
